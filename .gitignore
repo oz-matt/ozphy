@@ -1,0 +1,17 @@
+*.log
+*files*
+Makefile
+modellist
+ncomp.sh
+scomp.sh
+*.config
+*.key
+*.vpd
+
+/coverage
+/env
+/hdl_interconnect
+/logs
+/output
+/tests
+
