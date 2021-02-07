@@ -1,14 +1,9 @@
-
-  `define COM 8'hBC;
-  `define SKP 8'h1C;
-  `define TS1ID 8'h4A;
-  `define TS2ID 8'h45;
-
+`include "ozdefs.sv"
 module rxdriver 
   (
     input clk,
     input reset_n,
-    input[5:0] ost,
+    input LTSSM_State ost,
     input en_n,
     input[39:0]ts1,
     input[39:0]ts2,
@@ -36,7 +31,7 @@ module rxdriver
   reg[7:0] ts2os[0:15];
   integer bufctr, bufctrmax;
   
-  reg[5:0] currost;
+  LTSSM_State currost;
   
   reg finished_os;
   
@@ -44,10 +39,9 @@ module rxdriver
     if (currost != ost) begin
         currost <= ost;
         case(ost)
-      0: bufctrmax = 1;
-      1: bufctrmax = 4;
-        2: bufctrmax = 16;
-        3: bufctrmax = 16;
+      POLLING_ACTIVE: bufctrmax = 4;
+        POLLING_ACTIVE_START_TS1: bufctrmax = 16;
+          default: bufctrmax= 1;
     endcase
       end 
   endfunction
@@ -109,23 +103,23 @@ module rxdriver
         rxvalid <= 1;
         case (currost)
           
-          0: begin
-            rxdata <= 0;
-            UpdateCurrOsIfNeeded();
-          end
           
-          1: begin
+          POLLING_ACTIVE: begin
             rxdata <= skposdata[bufctr];
             if(bufctr >= (bufctrmax-1)) FinishedOs();
             else bufctr <= bufctr + 1;
           end
           
-          2: begin
+          POLLING_ACTIVE_START_TS1: begin
             rxdata <= ts1os[bufctr];
             if(bufctr >= (bufctrmax-1)) FinishedOs();
             else bufctr <= bufctr + 1;
           end
           
+          default: begin
+            rxdata <= 0;
+            UpdateCurrOsIfNeeded();
+          end
         endcase
     end
   end

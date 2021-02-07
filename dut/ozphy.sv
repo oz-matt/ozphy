@@ -2,15 +2,14 @@
 `include "rxdriver.sv"
 `include "encode.v"
 `include "decode.v"
+`include "ozdefs.sv"
 
-
-  `define PAD 8'hF7;
-  `define D2_0 8'h02;
-  `define D4_0 8'h04;
-  `define D8_0 8'h08;
-
-
-module ozphy(pcie_basic_if pcie_phy_if, output wire[9:0] testout);
+module ozphy #(
+  parameter nts = 1024 //number of ts1s and ts2s required during polling phase of ltssm. Spec cites 1024
+  ) (
+  pcie_basic_if pcie_phy_if, 
+    output wire[9:0] testout
+    );
 
   genvar c, j, ir1;
 
@@ -34,8 +33,6 @@ module ozphy(pcie_basic_if pcie_phy_if, output wire[9:0] testout);
 
   reg dispin;
   wire dispout;
-
-  typedef enum logic [3:0] {DETECT_QUIET, DETECT_ACTIVE, POLLING_ACTIVE, POLLING_ACTIVE_START_TS1, POLLING_CONFIG, CONFIG_LINKWIDTH_START, CONFIG_LINKWIDTH_ACCEPT, CONFIG_LANENUM_ACCEPT, CONFIG_COMPLETE, CONFIG_IDLE, L0} LTSSM_State;
 
   LTSSM_State curr_ltssm_state[15:0];
       
@@ -62,7 +59,7 @@ module ozphy(pcie_basic_if pcie_phy_if, output wire[9:0] testout);
     for(genvar cv=0; cv<16; cv=cv+1) begin
       rxdriver rxdrv(.clk(pcie_phy_if.clk),
         .reset_n(pcie_phy_if.reset_n[cv]),
-        .ost(ostype[cv]),
+        .ost(curr_ltssm_state[cv]),
         .en_n(l_rxelecidle[cv]),
         .ts1({t1[0][cv], t1[1][cv], t1[2][cv], t1[3][cv], t1[4][cv]}),
         .ts2({t2[0][cv], t2[1][cv], t2[2][cv], t2[3][cv], t2[4][cv]}),
