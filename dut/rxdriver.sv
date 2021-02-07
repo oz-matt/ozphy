@@ -10,12 +10,26 @@ module rxdriver
     input reset_n,
     input[5:0] ost,
     input en_n,
-    input[7:0] ts11thru5[0:4],
-    input[7:0] ts21thru5[0:4],
+    input[39:0]ts1,
+    input[39:0]ts2,
     output reg[7:0] rxdata,
     output reg rxdatak,
     output reg rxvalid
-  );
+    );
+  
+  wire[7:0] ts11thru5[0:4];
+  wire[7:0] ts21thru5[0:4];
+  
+  assign ts11thru5[0] = ts1[7:0];
+  assign ts11thru5[1] = ts1[15:8];
+  assign ts11thru5[2] = ts1[23:16];
+  assign ts11thru5[3] = ts1[31:24];
+  assign ts11thru5[4] = ts1[39:32];
+  assign ts21thru5[0] = ts2[7:0];
+  assign ts21thru5[1] = ts2[15:8];
+  assign ts21thru5[2] = ts2[23:16];
+  assign ts21thru5[3] = ts2[31:24];
+  assign ts21thru5[4] = ts2[39:32];
   
   reg[7:0] skposdata[0:3];
   reg[7:0] ts1os[0:15];

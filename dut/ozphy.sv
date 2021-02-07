@@ -22,7 +22,7 @@ module ozphy(pcie_basic_if pcie_phy_if, output wire[9:0] testout);
   reg[15:0] l_txdetectrx;
   reg[15:0][2:0] l_powerdown;
 
-  wire[7:0] l_rxdata[0:15];
+  wire[7:0] l_rxdata[15:0];
   wire[15:0] l_rxdatak;
 
   reg[5:0] ostype[0:15];
@@ -38,21 +38,42 @@ module ozphy(pcie_basic_if pcie_phy_if, output wire[9:0] testout);
   typedef enum logic [3:0] {DETECT_QUIET, DETECT_ACTIVE, POLLING_ACTIVE, POLLING_ACTIVE_START_TS1, POLLING_CONFIG, CONFIG_LINKWIDTH_START, CONFIG_LINKWIDTH_ACCEPT, CONFIG_LANENUM_ACCEPT, CONFIG_COMPLETE, CONFIG_IDLE, L0} LTSSM_State;
 
   LTSSM_State curr_ltssm_state[15:0];
-
+      
+  /*    
+  generate
+    for(genvar lv=0; lv<16; lv=lv+1) begin
+      always_comb begin
+   t1[0][lv] = `PAD;
+    t1[1][lv] = `PAD;
+    t1[2][lv] = `D4_0;
+    t1[3][lv] = `D2_0;
+    t1[4][lv] = `D8_0;
+    
+    t2[0][lv] = `PAD;
+    t2[1][lv] = `PAD;
+    t2[2][lv] = `D4_0;
+    t2[3][lv] = `D2_0;
+    t2[4][lv] = `D8_0;
+      end
+    end
+  endgenerate
+    */
   generate
     for(genvar cv=0; cv<16; cv=cv+1) begin
       rxdriver rxdrv(.clk(pcie_phy_if.clk),
-        .reset_n(pcie_phy_if.reset_n),
+        .reset_n(pcie_phy_if.reset_n[cv]),
         .ost(ostype[cv]),
         .en_n(l_rxelecidle[cv]),
-        .ts11thru5(t1[cv]),
-        .ts21thru5(t2[cv]),
-        .rxdata(l_rxdata[cv]),
+        .ts1({t1[0][cv], t1[1][cv], t1[2][cv], t1[3][cv], t1[4][cv]}),
+        .ts2({t2[0][cv], t2[1][cv], t2[2][cv], t2[3][cv], t2[4][cv]}),
+        .rxdata({l_rxdata[cv][7],l_rxdata[cv][6],l_rxdata[cv][5],l_rxdata[cv][4],l_rxdata[cv][3],l_rxdata[cv][2],l_rxdata[cv][1],l_rxdata[cv][0] }),
+       // .rxdata(l_rxdata[cv][7:0]),
         .rxdatak(l_rxdatak[cv]),
         .rxvalid(l_rxvalid[cv])
       );
     end
   endgenerate
+  
 
   always @(posedge pcie_phy_if.clk or negedge pcie_phy_if.reset_n) begin
     if(!pcie_phy_if.reset_n) l_txdetectrx <= 0;
@@ -107,7 +128,6 @@ module ozphy(pcie_basic_if pcie_phy_if, output wire[9:0] testout);
           l_rxstatus[c]       <= 0;
           l_phystatus[c]      <= 0;
           l_rxelecidle[c]     <= 1'b1;
-          l_rxvalid[c]        <= 1'b0;
           ostype[c] = 0;
           tctr[c]   = 0;
         end
@@ -147,7 +167,6 @@ module ozphy(pcie_basic_if pcie_phy_if, output wire[9:0] testout);
               else tctr[c]          <= tctr[c] + 1;
 
               l_rxelecidle[c] <= 1'b0;
-              l_rxvalid[c]    <= 1'b1;
               l_phystatus[c]  <= 0;
               ostype[c] = 1;
             end
@@ -173,21 +192,20 @@ module ozphy(pcie_basic_if pcie_phy_if, output wire[9:0] testout);
         l_rxstatus[j]   <= 0;
         l_powerdown[j]  <= 2;
         l_rxelecidle[j] <= 1'b1;
-        l_rxvalid[j]    <= 1'b0;
         ostype[j]           = 0;
         tctr[j]             = 0;
 
-        t1[0][j]            = `PAD;
-        t1[1][j]            = `PAD;
+        t1[4][j]            = `PAD;
+        t1[3][j]            = `PAD;
         t1[2][j]            = `D4_0;
-        t1[3][j]            = `D2_0;
-        t1[4][j]            = `D8_0;
+        t1[1][j]            = `D2_0;
+        t1[0][j]            = `D8_0;
 
-        t2[0][j]            = `PAD;
-        t2[1][j]            = `PAD;
+        t2[4][j]            = `PAD;
+        t2[3][j]            = `PAD;
         t2[2][j]            = `D4_0;
-        t2[3][j]            = `D2_0;
-        t2[4][j]            = `D8_0;
+        t2[1][j]            = `D2_0;
+        t2[0][j]            = `D8_0;
 
       end
     end
@@ -198,6 +216,7 @@ module ozphy(pcie_basic_if pcie_phy_if, output wire[9:0] testout);
   end
 
 
+ 
   assign pcie_phy_if.pclk            = pcie_phy_if.clk;
   assign pcie_phy_if.rxclk           = pcie_phy_if.clk;
   assign pcie_phy_if.rxstatus0[2:0]  = l_rxstatus[0];
@@ -218,38 +237,38 @@ module ozphy(pcie_basic_if pcie_phy_if, output wire[9:0] testout);
   assign pcie_phy_if.rxstatus15[2:0] = l_rxstatus[15];
   assign pcie_phy_if.rxelecidle      = l_rxelecidle;
   assign pcie_phy_if.rxvalid         = l_rxvalid;
-  assign pcie_phy_if.lane0_rxdata    = l_rxdata[0];
-  assign pcie_phy_if.lane1_rxdata    = l_rxdata[1];
-  assign pcie_phy_if.lane2_rxdata    = l_rxdata[2];
-  assign pcie_phy_if.lane3_rxdata    = l_rxdata[3];
-  assign pcie_phy_if.lane4_rxdata    = l_rxdata[4];
-  assign pcie_phy_if.lane5_rxdata    = l_rxdata[5];
-  assign pcie_phy_if.lane6_rxdata    = l_rxdata[6];
-  assign pcie_phy_if.lane7_rxdata    = l_rxdata[7];
-  assign pcie_phy_if.lane8_rxdata    = l_rxdata[8];
-  assign pcie_phy_if.lane9_rxdata    = l_rxdata[9];
-  assign pcie_phy_if.lane10_rxdata   = l_rxdata[10];
-  assign pcie_phy_if.lane11_rxdata   = l_rxdata[11];
-  assign pcie_phy_if.lane12_rxdata   = l_rxdata[12];
-  assign pcie_phy_if.lane13_rxdata   = l_rxdata[13];
-  assign pcie_phy_if.lane14_rxdata   = l_rxdata[14];
-  assign pcie_phy_if.lane15_rxdata   = l_rxdata[15];
-  assign pcie_phy_if.lane0_rxdatak   = l_rxdatak[0];
-  assign pcie_phy_if.lane1_rxdatak   = l_rxdatak[1];
-  assign pcie_phy_if.lane2_rxdatak   = l_rxdatak[2];
-  assign pcie_phy_if.lane3_rxdatak   = l_rxdatak[3];
-  assign pcie_phy_if.lane4_rxdatak   = l_rxdatak[4];
-  assign pcie_phy_if.lane5_rxdatak   = l_rxdatak[5];
-  assign pcie_phy_if.lane6_rxdatak   = l_rxdatak[6];
-  assign pcie_phy_if.lane7_rxdatak   = l_rxdatak[7];
-  assign pcie_phy_if.lane8_rxdatak   = l_rxdatak[8];
-  assign pcie_phy_if.lane9_rxdatak   = l_rxdatak[9];
-  assign pcie_phy_if.lane10_rxdatak  = l_rxdatak[10];
-  assign pcie_phy_if.lane11_rxdatak  = l_rxdatak[11];
-  assign pcie_phy_if.lane12_rxdatak  = l_rxdatak[12];
-  assign pcie_phy_if.lane13_rxdatak  = l_rxdatak[13];
-  assign pcie_phy_if.lane14_rxdatak  = l_rxdatak[14];
-  assign pcie_phy_if.lane15_rxdatak  = l_rxdatak[15];
+  assign pcie_phy_if.lane0_txdata    = l_rxdata[0];
+  assign pcie_phy_if.lane1_txdata    = l_rxdata[1];
+  assign pcie_phy_if.lane2_txdata    = l_rxdata[2];
+  assign pcie_phy_if.lane3_txdata    = l_rxdata[3];
+  assign pcie_phy_if.lane4_txdata    = l_rxdata[4];
+  assign pcie_phy_if.lane5_txdata    = l_rxdata[5];
+  assign pcie_phy_if.lane6_txdata    = l_rxdata[6];
+  assign pcie_phy_if.lane7_txdata    = l_rxdata[7];
+  assign pcie_phy_if.lane8_txdata    = l_rxdata[8];
+  assign pcie_phy_if.lane9_txdata    = l_rxdata[9];
+  assign pcie_phy_if.lane10_txdata   = l_rxdata[10];
+  assign pcie_phy_if.lane11_txdata   = l_rxdata[11];
+  assign pcie_phy_if.lane12_txdata   = l_rxdata[12];
+  assign pcie_phy_if.lane13_txdata   = l_rxdata[13];
+  assign pcie_phy_if.lane14_txdata   = l_rxdata[14];
+  assign pcie_phy_if.lane15_txdata   = l_rxdata[15];
+  assign pcie_phy_if.lane0_txdatak   = l_rxdatak[0];
+  assign pcie_phy_if.lane1_txdatak   = l_rxdatak[1];
+  assign pcie_phy_if.lane2_txdatak   = l_rxdatak[2];
+  assign pcie_phy_if.lane3_txdatak   = l_rxdatak[3];
+  assign pcie_phy_if.lane4_txdatak   = l_rxdatak[4];
+  assign pcie_phy_if.lane5_txdatak   = l_rxdatak[5];
+  assign pcie_phy_if.lane6_txdatak   = l_rxdatak[6];
+  assign pcie_phy_if.lane7_txdatak   = l_rxdatak[7];
+  assign pcie_phy_if.lane8_txdatak   = l_rxdatak[8];
+  assign pcie_phy_if.lane9_txdatak   = l_rxdatak[9];
+  assign pcie_phy_if.lane10_txdatak  = l_rxdatak[10];
+  assign pcie_phy_if.lane11_txdatak  = l_rxdatak[11];
+  assign pcie_phy_if.lane12_txdatak  = l_rxdatak[12];
+  assign pcie_phy_if.lane13_txdatak  = l_rxdatak[13];
+  assign pcie_phy_if.lane14_txdatak  = l_rxdatak[14];
+  assign pcie_phy_if.lane15_txdatak  = l_rxdatak[15];
   assign pcie_phy_if.phystatus       = l_phystatus;
 
   encode DUTE (pcie_phy_if.lane0_txdata[7:0], dispin, testout, dispout);

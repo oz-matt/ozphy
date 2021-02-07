@@ -14,4 +14,5 @@ scomp.sh
 /logs
 /output
 /tests
+/dut/hdl_interconnect.sv
 
