@@ -1,5 +1,6 @@
 `include "../env/pcie_basic_if.sv"
 `include "rxdriver.sv"
+`include "txrecvr.sv"
 `include "encode.v"
 `include "decode.v"
 `include "ozdefs.sv"
@@ -22,9 +23,10 @@ module ozphy #(
   reg[15:0][2:0] l_powerdown;
 
   wire[7:0] l_rxdata[15:0];
+  wire[7:0] l_txdata[15:0];
   wire[15:0] l_rxdatak;
+  wire[15:0] l_txdatak;
 
-  reg[5:0] ostype[0:15];
   //TS1 ordered set vals
   reg[5:0] tctr[0:15];
 
@@ -33,28 +35,27 @@ module ozphy #(
 
   reg dispin;
   wire dispout;
+  
+  wire[15:0] l_ts1ctr;
 
   LTSSM_State curr_ltssm_state[15:0];
       
-  /*    
   generate
     for(genvar lv=0; lv<16; lv=lv+1) begin
-      always_comb begin
-   t1[0][lv] = `PAD;
-    t1[1][lv] = `PAD;
-    t1[2][lv] = `D4_0;
-    t1[3][lv] = `D2_0;
-    t1[4][lv] = `D8_0;
     
-    t2[0][lv] = `PAD;
-    t2[1][lv] = `PAD;
-    t2[2][lv] = `D4_0;
-    t2[3][lv] = `D2_0;
-    t2[4][lv] = `D8_0;
-      end
+ txrecvr txrv
+  (
+    .clk(pcie_phy_if.clk),
+    .reset_n(pcie_phy_if.reset_n[lv]),
+    .txdata({l_txdata[lv][7],l_txdata[lv][6],l_txdata[lv][5],l_txdata[lv][4],l_txdata[lv][3],l_txdata[lv][2],l_txdata[lv][1],l_txdata[lv][0] }),
+    .en_n(pcie_phy_if.txelecidle[lv]),
+    .txdatak(l_txdatak[lv]),
+    .curr_ltssm_state(curr_ltssm_state[lv]),
+    .ts1ctr(l_ts1ctr)
+    );
     end
   endgenerate
-    */
+
   generate
     for(genvar cv=0; cv<16; cv=cv+1) begin
       rxdriver rxdrv(.clk(pcie_phy_if.clk),
@@ -125,7 +126,6 @@ module ozphy #(
           l_rxstatus[c]       <= 0;
           l_phystatus[c]      <= 0;
           l_rxelecidle[c]     <= 1'b1;
-          ostype[c] = 0;
           tctr[c]   = 0;
         end
         else begin
@@ -165,10 +165,8 @@ module ozphy #(
 
               l_rxelecidle[c] <= 1'b0;
               l_phystatus[c]  <= 0;
-              ostype[c] = 1;
             end
             POLLING_ACTIVE_START_TS1: begin
-              ostype[c] = 2;
             end
 
           endcase
@@ -189,7 +187,6 @@ module ozphy #(
         l_rxstatus[j]   <= 0;
         l_powerdown[j]  <= 2;
         l_rxelecidle[j] <= 1'b1;
-        ostype[j]           = 0;
         tctr[j]             = 0;
 
         t1[4][j]            = `PAD;
@@ -266,6 +263,40 @@ module ozphy #(
   assign pcie_phy_if.lane13_txdatak  = l_rxdatak[13];
   assign pcie_phy_if.lane14_txdatak  = l_rxdatak[14];
   assign pcie_phy_if.lane15_txdatak  = l_rxdatak[15];
+  
+  assign l_txdata[0] = pcie_phy_if.lane0_rxdata;
+  assign l_txdata[1] = pcie_phy_if.lane1_rxdata;
+  assign l_txdata[2] = pcie_phy_if.lane2_rxdata;
+  assign l_txdata[3] = pcie_phy_if.lane3_rxdata;
+  assign l_txdata[4] = pcie_phy_if.lane4_rxdata;
+  assign l_txdata[5] = pcie_phy_if.lane5_rxdata;
+  assign l_txdata[6] = pcie_phy_if.lane6_rxdata;
+  assign l_txdata[7] = pcie_phy_if.lane7_rxdata;
+  assign l_txdata[8] = pcie_phy_if.lane8_rxdata;
+  assign l_txdata[9] = pcie_phy_if.lane9_rxdata;
+  assign l_txdata[10] = pcie_phy_if.lane10_rxdata;
+  assign l_txdata[11] = pcie_phy_if.lane11_rxdata;
+  assign l_txdata[12] = pcie_phy_if.lane12_rxdata;
+  assign l_txdata[13] = pcie_phy_if.lane13_rxdata;
+  assign l_txdata[14] = pcie_phy_if.lane14_rxdata;
+  assign l_txdata[15] = pcie_phy_if.lane15_rxdata;
+  assign l_txdatak[0] = pcie_phy_if.lane0_rxdatak;
+  assign l_txdatak[1] = pcie_phy_if.lane1_rxdatak;
+  assign l_txdatak[2] = pcie_phy_if.lane2_rxdatak;
+  assign l_txdatak[3] = pcie_phy_if.lane3_rxdatak;
+  assign l_txdatak[4] = pcie_phy_if.lane4_rxdatak;
+  assign l_txdatak[5] = pcie_phy_if.lane5_rxdatak;
+  assign l_txdatak[6] = pcie_phy_if.lane6_rxdatak;
+  assign l_txdatak[7] = pcie_phy_if.lane7_rxdatak;
+  assign l_txdatak[8] = pcie_phy_if.lane8_rxdatak;
+  assign l_txdatak[9] = pcie_phy_if.lane9_rxdatak;
+  assign l_txdatak[10] = pcie_phy_if.lane10_rxdatak;
+  assign l_txdatak[11] = pcie_phy_if.lane11_rxdatak;
+  assign l_txdatak[12] = pcie_phy_if.lane12_rxdatak;
+  assign l_txdatak[13] = pcie_phy_if.lane13_rxdatak;
+  assign l_txdatak[14] = pcie_phy_if.lane14_rxdatak;
+  assign l_txdatak[15] = pcie_phy_if.lane15_rxdatak;
+  
   assign pcie_phy_if.phystatus       = l_phystatus;
 
   encode DUTE (pcie_phy_if.lane0_txdata[7:0], dispin, testout, dispout);
