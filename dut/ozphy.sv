@@ -17,6 +17,7 @@ module ozphy #(
   reg[15:0][2:0] l_rxstatus;
   reg[15:0] l_phystatus;
   reg[15:0] l_rxelecidle;
+  wire[15:0] l_txelecidle;
   wire[15:0] l_rxvalid;
 
   reg[15:0] l_txdetectrx;
@@ -36,9 +37,12 @@ module ozphy #(
   reg dispin;
   wire dispout;
   
-  wire[15:0] l_ts1ctr;
+  wire[15:0] l_ts1ctr[15:0];
+  wire[15:0] l_ts2ctr[15:0];
 
   LTSSM_State curr_ltssm_state[15:0];
+  
+  reg[15:0] phyHasDetectedReceiverOnThisLane;
       
   generate
     for(genvar lv=0; lv<16; lv=lv+1) begin
@@ -51,7 +55,8 @@ module ozphy #(
     .en_n(pcie_phy_if.txelecidle[lv]),
     .txdatak(l_txdatak[lv]),
     .curr_ltssm_state(curr_ltssm_state[lv]),
-    .ts1ctr(l_ts1ctr)
+    .ts1ctr(l_ts1ctr[lv]),
+    .ts2ctr(l_ts2ctr[lv])
     );
     end
   endgenerate
@@ -127,6 +132,7 @@ module ozphy #(
           l_phystatus[c]      <= 0;
           l_rxelecidle[c]     <= 1'b1;
           tctr[c]   = 0;
+        phyHasDetectedReceiverOnThisLane[c] <= 0;
         end
         else begin
           case (curr_ltssm_state[c])
@@ -166,7 +172,22 @@ module ozphy #(
               l_rxelecidle[c] <= 1'b0;
               l_phystatus[c]  <= 0;
             end
+            
             POLLING_ACTIVE_START_TS1: begin
+              if(EnterPollingConfigCriteriaSatisfied(l_ts1ctr[c], l_txelecidle[c])) begin
+                curr_ltssm_state[c] <= POLLING_CONFIG;
+              end
+            end
+            
+            POLLING_CONFIG: begin
+              if(EnterConfigCriteriaSatisfied(l_ts2ctr[c], l_txelecidle[c])) begin
+                curr_ltssm_state[c] <= CONFIG_LINKWIDTH_START;
+        phyHasDetectedReceiverOnThisLane[c] = 1;
+              end
+            end
+
+            CONFIG_LINKWIDTH_START: begin
+              
             end
 
           endcase
@@ -179,6 +200,14 @@ module ozphy #(
     dispin      = 0;
     l_phystatus = 0;
   end
+  
+  function int EnterPollingConfigCriteriaSatisfied(logic[15:0] ts1ctr, logic txelecidle);
+    return ((ts1ctr >= 16) && !txelecidle);
+  endfunction
+
+  function int EnterConfigCriteriaSatisfied(logic[15:0] ts2ctr, logic txelecidle);
+    return ((ts2ctr >= 16) && !txelecidle);
+  endfunction
 
   generate
     for(j=0; j<16; j=j+1) begin
@@ -188,6 +217,8 @@ module ozphy #(
         l_powerdown[j]  <= 2;
         l_rxelecidle[j] <= 1'b1;
         tctr[j]             = 0;
+        
+        phyHasDetectedReceiverOnThisLane[j] = 0;
 
         t1[4][j]            = `PAD;
         t1[3][j]            = `PAD;
@@ -229,6 +260,7 @@ module ozphy #(
   assign pcie_phy_if.rxstatus13[2:0] = l_rxstatus[13];
   assign pcie_phy_if.rxstatus14[2:0] = l_rxstatus[14];
   assign pcie_phy_if.rxstatus15[2:0] = l_rxstatus[15];
+  assign l_txelecidle = pcie_phy_if.txelecidle;
   assign pcie_phy_if.rxelecidle      = l_rxelecidle;
   assign pcie_phy_if.rxvalid         = l_rxvalid;
   assign pcie_phy_if.lane0_txdata    = l_rxdata[0];

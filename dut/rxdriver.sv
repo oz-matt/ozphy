@@ -39,8 +39,9 @@ module rxdriver
     if (currost != ost) begin
         currost <= ost;
         case(ost)
-      POLLING_ACTIVE: bufctrmax = 4;
-        POLLING_ACTIVE_START_TS1: bufctrmax = 16;
+      POLLING_ACTIVE: bufctrmax = 4; // Listen for SKP sequence
+        POLLING_ACTIVE_START_TS1: bufctrmax = 16; // Listen for TS1
+        POLLING_CONFIG: bufctrmax = 16; //Listen for TS2
           default: bufctrmax= 1;
     endcase
       end 
@@ -85,7 +86,7 @@ module rxdriver
   
   initial begin
     bufctr = 0;
-    currost = 0;
+    currost = DETECT_QUIET;
     finished_os = 0;
     InitOSets();
   end
@@ -95,14 +96,13 @@ module rxdriver
         rxdata <= 0;
         rxvalid <= 0;
         bufctr <= 0;
-      currost = 0;
+      currost = DETECT_QUIET;
     finished_os <= 0;
     end
     else begin
     finished_os <= 0;
         rxvalid <= 1;
         case (currost)
-          
           
           POLLING_ACTIVE: begin
             rxdata <= skposdata[bufctr];
@@ -116,6 +116,13 @@ module rxdriver
             else bufctr <= bufctr + 1;
           end
           
+          POLLING_CONFIG: begin
+            rxdata <= ts2os[bufctr];
+            if(bufctr >= (bufctrmax-1)) FinishedOs();
+            else bufctr <= bufctr + 1;
+          end
+            
+            
           default: begin
             rxdata <= 0;
             UpdateCurrOsIfNeeded();
@@ -129,6 +136,6 @@ module rxdriver
     ts2os[1:5] = ts21thru5[0:4];
   end
   
-  assign rxdatak = ((rxdata == 8'h1C) || (rxdata == 8'hBC) || (rxdata == 8'hF7));
+  assign rxdatak = ((rxdata == `PAD) || (rxdata == `SKP) || (rxdata == `COM));
   
 endmodule
