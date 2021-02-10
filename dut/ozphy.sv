@@ -5,6 +5,7 @@
 `include "decode.v"
 `include "ozdefs.sv"
 `include "phy2macdriveriface.sv"
+`include "mac2phyrcvriface.sv"
 
 module ozphy #(
   parameter N_LANES = 16, //number of pcie lanes
@@ -47,9 +48,8 @@ module ozphy #(
   reg[15:0] phyHasDetectedReceiverOnThisLane;
       
   generate
-    for(genvar lv=0; lv<16; lv=lv+1) begin
-    
- txrecvr txrv
+    for(genvar lv=0; lv<N_LANES; lv=lv+1) begin : m2pri_gen
+    mac2phyrcvriface m2pri
   (
     .clk(pcie_phy_if.clk),
     .reset_n(pcie_phy_if.reset_n[lv]),
@@ -61,9 +61,25 @@ module ozphy #(
     .ts2ctr(l_ts2ctr[lv])
     );
     end
+ /*txrecvr txrv
+  (
+    .clk(pcie_phy_if.clk),
+    .reset_n(pcie_phy_if.reset_n[lv]),
+    .txdata({l_txdata[lv][7],l_txdata[lv][6],l_txdata[lv][5],l_txdata[lv][4],l_txdata[lv][3],l_txdata[lv][2],l_txdata[lv][1],l_txdata[lv][0] }),
+    .en_n(pcie_phy_if.txelecidle[lv]),
+    .txdatak(l_txdatak[lv]),
+    .curr_ltssm_state(curr_ltssm_state[lv]),
+    .ts1ctr(l_ts1ctr[lv]),
+    .ts2ctr(l_ts2ctr[lv])
+    );
+    end*/
   endgenerate
   
-  
+  generate
+    for(genvar dv=0; dv<N_LANES; dv=dv+1) begin : txrv
+      txrecvr txrv(m2pri_gen[dv].m2pri.rcvrside);
+    end
+  endgenerate
 
   generate
     for(genvar cv=0; cv<N_LANES; cv=cv+1) begin : p2mdi_gen

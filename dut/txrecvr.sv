@@ -1,8 +1,43 @@
 `include "ozdefs.sv"
 `include "ltssmfxs.sv"
 
-module txrecvr 
-  (
+module txrecvr(mac2phyrcvriface.rcvrside prsi);
+  
+  always @(posedge prsi.clk or negedge prsi.reset_n) begin
+    if (!prsi.reset_n || prsi.en_n) begin
+      prsi.FlushQueue();
+         prsi.ts1ctr = 0;
+      prsi.ts2ctr = 0;
+         prsi.rcvrq_ptr = 0;
+    end
+    else begin
+      
+      if(prsi.txdata == `COM) begin
+        prsi.rcvrq_ptr <= 0;
+        prsi.rcvrq[0] <= `COM;
+        
+        if(prsi.CheckIfPadTs1()) begin
+        prsi.ts1ctr <= prsi.ts1ctr + 1;
+        prsi.ts1_nfts <= prsi.rcvrq[3];
+        prsi.ts1_dri <= prsi.rcvrq[4];
+        prsi.ts1_tc <= prsi.rcvrq[5];
+        end
+        
+        if(prsi.CheckIfPadTs2()) begin
+        prsi.ts2ctr <= prsi.ts2ctr + 1;
+        prsi.ts2_nfts <= prsi.rcvrq[3];
+        prsi.ts2_dri <= prsi.rcvrq[4];
+        prsi.ts2_tc <= prsi.rcvrq[5];
+        end
+      end
+      else begin
+        prsi.rcvrq[prsi.rcvrq_ptr+1] <= prsi.txdata;
+        prsi.rcvrq_ptr <= prsi.rcvrq_ptr + 1;
+      end
+      
+    end
+  end
+  /*
     input clk,
     input reset_n,
     input[7:0] txdata,
@@ -74,5 +109,6 @@ module txrecvr
     ts2ctr = 0;
   end
   
-
+*/
 endmodule
+
