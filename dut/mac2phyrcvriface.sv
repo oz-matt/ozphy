@@ -20,19 +20,39 @@ interface mac2phyrcvriface(
     logic[7:0] ts1_nfts;
     logic[7:0] ts1_dri;
     logic[7:0] ts1_tc;
+    logic[7:0] ts1_lanen;
+    logic[7:0] ts1_linkn;
   
     logic[7:0] ts2_nfts;
     logic[7:0] ts2_dri;
     logic[7:0] ts2_tc;
+    logic[7:0] ts2_lanen;
+    logic[7:0] ts2_linkn;
   
+    logic[15:0] ts1ctr;
+    logic[15:0] ts2ctr;
+    
+    logic linkProposed;
+    
+    OsType osNowInQueue;
+    
+    always_comb begin
+      if(CheckIfSkp()) osNowInQueue= SKP;
+      else if(CheckIfTs1()) osNowInQueue= TS1;
+      else if(CheckIfTs2()) osNowInQueue= TS2;
+      else osNowInQueue= NONE;
+    end
+    
+    assign linkProposed = ((osNowInQueue == TS1) &&
+      (rcvrq[1] != `PAD) &&
+      (curr_ltssm_state == CONFIG_LINKWIDTH_START)) ? 1 : 0;
+    
   function void FlushQueue();
     for(int i=0;i< MAX_POSSIBLE_TS_LEN; i=i+1) rcvrq[i] <= 8'h00;
   endfunction
   
-  function int CheckIfPadTs1();
+  function int CheckIfTs1();
     if((rcvrq[0] == `COM) &&
-      (rcvrq[1] == `PAD) &&
-      (rcvrq[2] == `PAD) &&
       (rcvrq[6] == `TS1ID) &&
       (rcvrq[7] == `TS1ID) &&
       (rcvrq[8] == `TS1ID) &&
@@ -47,10 +67,16 @@ interface mac2phyrcvriface(
      else return 0;
   endfunction
   
-  function int CheckIfPadTs2();
+  function int CheckIfSkp();
     if((rcvrq[0] == `COM) &&
-      (rcvrq[1] == `PAD) &&
-      (rcvrq[2] == `PAD) &&
+      (rcvrq[1] == `SKP) &&
+      (rcvrq[2] == `SKP) )
+        return 1;
+     else return 0;
+  endfunction
+  
+  function int CheckIfTs2();
+    if((rcvrq[0] == `COM) &&
       (rcvrq[6] == `TS2ID) &&
       (rcvrq[7] == `TS2ID) &&
       (rcvrq[8] == `TS2ID) &&
@@ -65,6 +91,22 @@ interface mac2phyrcvriface(
      else return 0;
   endfunction
   
+  function void IncrementTs1Ctr();
+    ts1ctr++;
+  endfunction
+  
+  function void IncrementTs2Ctr();
+    ts2ctr++;
+  endfunction
+  
+  function void ResetTs1Ctr();
+    ts1ctr <= 0;
+  endfunction
+  
+  function void ResetTs2Ctr();
+    ts2ctr <= 0;
+  endfunction
+  
   initial begin
     ts1ctr = 0;
     ts2ctr = 0;
@@ -77,19 +119,24 @@ interface mac2phyrcvriface(
     input en_n,
     input txdatak,
     input curr_ltssm_state,
+    input osNowInQueue,
     inout rcvrq,
     inout rcvrq_ptr,
     inout rcvrq_ptr_max,
+    output ts1_linkn,
+    output ts1_lanen,
     output ts1_nfts,
     output ts1_dri,
     output ts1_tc,
+    output ts2_linkn,
+    output ts2_lanen,
     output ts2_nfts,
     output ts2_dri,
     output ts2_tc,
-    output ts1ctr,
-    output ts2ctr,
-    import CheckIfPadTs1,
-    import CheckIfPadTs2,
+    import IncrementTs1Ctr,
+    import IncrementTs2Ctr,
+    import ResetTs1Ctr,
+    import ResetTs2Ctr,
     import FlushQueue
   );
 

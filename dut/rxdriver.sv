@@ -47,6 +47,15 @@ module rxdriver (phy2macdriveriface.drvrside mdsi);
             else seqPtr <= seqPtr + 1;
           end
             
+          CONFIG_LINKWIDTH_START: begin
+            mdsi.rxdata <= mdsi.storedTs1Sequence[seqPtr];
+            if(seqPtr >= (mdsi.seqPtrMax-1)) begin
+              mdsi.FinishedOs();
+              seqPtr <= 0;
+            end
+            else seqPtr <= seqPtr + 1;
+          end
+
             
           default: begin
             mdsi.rxdata <= 0;

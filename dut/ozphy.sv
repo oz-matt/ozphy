@@ -61,27 +61,9 @@ module ozphy #(
     .ts2ctr(l_ts2ctr[lv])
     );
     end
- /*txrecvr txrv
-  (
-    .clk(pcie_phy_if.clk),
-    .reset_n(pcie_phy_if.reset_n[lv]),
-    .txdata({l_txdata[lv][7],l_txdata[lv][6],l_txdata[lv][5],l_txdata[lv][4],l_txdata[lv][3],l_txdata[lv][2],l_txdata[lv][1],l_txdata[lv][0] }),
-    .en_n(pcie_phy_if.txelecidle[lv]),
-    .txdatak(l_txdatak[lv]),
-    .curr_ltssm_state(curr_ltssm_state[lv]),
-    .ts1ctr(l_ts1ctr[lv]),
-    .ts2ctr(l_ts2ctr[lv])
-    );
-    end*/
-  endgenerate
-  
-  generate
     for(genvar dv=0; dv<N_LANES; dv=dv+1) begin : txrv
       txrecvr txrv(m2pri_gen[dv].m2pri.rcvrside);
     end
-  endgenerate
-
-  generate
     for(genvar cv=0; cv<N_LANES; cv=cv+1) begin : p2mdi_gen
       phy2macdriveriface p2mdi(
         .clk(pcie_phy_if.clk),
@@ -94,15 +76,10 @@ module ozphy #(
         .rxvalid(l_rxvalid[cv])
       );
     end
-  endgenerate
-  
-  
-  generate
     for(genvar kv=0; kv<N_LANES; kv=kv+1) begin : rxdrv
       rxdriver rxdrv(p2mdi_gen[kv].p2mdi.drvrside);
     end
   endgenerate
-  
 
   always @(posedge pcie_phy_if.clk or negedge pcie_phy_if.reset_n) begin
     if(!pcie_phy_if.reset_n) l_txdetectrx <= 0;
@@ -208,12 +185,16 @@ module ozphy #(
             POLLING_CONFIG: begin
               if(EnterConfigCriteriaSatisfied(l_ts2ctr[c], l_txelecidle[c])) begin
                 curr_ltssm_state[c] <= CONFIG_LINKWIDTH_START;
-        phyHasDetectedReceiverOnThisLane[c] = 1;
+                phyHasDetectedReceiverOnThisLane[c] = 1;
+                m2pri_gen[c].m2pri.ResetTs1Ctr(); //Now when ts1 and ts2 counters contain anything, we know it is new ts1/2 pkts
+                m2pri_gen[c].m2pri.ResetTs2Ctr();
               end
             end
 
             CONFIG_LINKWIDTH_START: begin
-              
+              if(m2pri_gen[c].m2pri.linkProposed) begin
+                t1[4][c] <= m2pri_gen[c].m2pri.ts1_linkn;
+              end
             end
 
           endcase

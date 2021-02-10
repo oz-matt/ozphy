@@ -38,6 +38,7 @@ interface phy2macdriveriface(
       POLLING_ACTIVE: seqPtrMax = 4; // Listen for SKP sequence
         POLLING_ACTIVE_START_TS1: seqPtrMax = 16; // Listen for TS1
         POLLING_CONFIG: seqPtrMax = 16; //Listen for TS2
+        CONFIG_LINKWIDTH_START: seqPtrMax = 16; //Listen for TS1
           default: seqPtrMax = 1;
     endcase
       end 
