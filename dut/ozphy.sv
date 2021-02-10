@@ -4,8 +4,10 @@
 `include "encode.v"
 `include "decode.v"
 `include "ozdefs.sv"
+`include "phy2macdriveriface.sv"
 
 module ozphy #(
+  parameter N_LANES = 16, //number of pcie lanes
   parameter nts = 1024 //number of ts1s and ts2s required during polling phase of ltssm. Spec cites 1024
   ) (
   pcie_basic_if pcie_phy_if, 
@@ -60,20 +62,28 @@ module ozphy #(
     );
     end
   endgenerate
+  
+  
 
   generate
-    for(genvar cv=0; cv<16; cv=cv+1) begin
-      rxdriver rxdrv(.clk(pcie_phy_if.clk),
-        .reset_n(pcie_phy_if.reset_n[cv]),
-        .ost(curr_ltssm_state[cv]),
+    for(genvar cv=0; cv<N_LANES; cv=cv+1) begin : p2mdi_gen
+      phy2macdriveriface p2mdi(
+        .clk(pcie_phy_if.clk),
+        .currLtssmState(curr_ltssm_state[cv]),
         .en_n(l_rxelecidle[cv]),
-        .ts1({t1[0][cv], t1[1][cv], t1[2][cv], t1[3][cv], t1[4][cv]}),
-        .ts2({t2[0][cv], t2[1][cv], t2[2][cv], t2[3][cv], t2[4][cv]}),
+        .ts1Bytes1Thru5({t1[0][cv], t1[1][cv], t1[2][cv], t1[3][cv], t1[4][cv]}),
+        .ts2Bytes1Thru5({t2[0][cv], t2[1][cv], t2[2][cv], t2[3][cv], t2[4][cv]}),
         .rxdata({l_rxdata[cv][7],l_rxdata[cv][6],l_rxdata[cv][5],l_rxdata[cv][4],l_rxdata[cv][3],l_rxdata[cv][2],l_rxdata[cv][1],l_rxdata[cv][0] }),
-       // .rxdata(l_rxdata[cv][7:0]),
         .rxdatak(l_rxdatak[cv]),
         .rxvalid(l_rxvalid[cv])
       );
+    end
+  endgenerate
+  
+  
+  generate
+    for(genvar kv=0; kv<N_LANES; kv=kv+1) begin : rxdrv
+      rxdriver rxdrv(p2mdi_gen[kv].p2mdi.drvrside);
     end
   endgenerate
   
