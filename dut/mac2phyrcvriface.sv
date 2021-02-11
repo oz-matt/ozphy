@@ -33,8 +33,21 @@ interface mac2phyrcvriface(
     logic[15:0] ts2ctr;
     
     logic linkProposed;
+    logic laneProposed;
+    logic configComplete;
     
     OsType osNowInQueue;
+    
+    logic[15:0] idlectr;
+    logic enIdleCtr;
+    
+    always @(posedge clk or negedge reset_n) begin
+      if(!reset_n) idlectr <= 0;
+      else begin
+        if(enIdleCtr && (txdata == `COM)) idlectr++;
+        else idlectr <= 0;
+      end
+    end
     
     always_comb begin
       if(CheckIfSkp()) osNowInQueue= SKP;
@@ -46,6 +59,15 @@ interface mac2phyrcvriface(
     assign linkProposed = ((osNowInQueue == TS1) &&
       (rcvrq[1] != `PAD) &&
       (curr_ltssm_state == CONFIG_LINKWIDTH_START)) ? 1 : 0;
+    
+    assign laneProposed = ((osNowInQueue == TS1) &&
+      (rcvrq[2] != `PAD) &&
+      (curr_ltssm_state == CONFIG_LINKWIDTH_ACCEPT)) ? 1 : 0;
+    
+    assign configComplete = ((osNowInQueue == TS2) &&
+      (rcvrq[1] != `PAD) && 
+      (rcvrq[2] != `PAD) && 
+      (curr_ltssm_state == CONFIG_LANENUM_ACCEPT)) ? 1 : 0;
     
   function void FlushQueue();
     for(int i=0;i< MAX_POSSIBLE_TS_LEN; i=i+1) rcvrq[i] <= 8'h00;
@@ -110,6 +132,8 @@ interface mac2phyrcvriface(
   initial begin
     ts1ctr = 0;
     ts2ctr = 0;
+    idlectr = 0;
+    enIdleCtr = 0;
   end
   
   modport rcvrside (

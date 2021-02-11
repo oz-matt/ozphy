@@ -47,6 +47,8 @@ module ozphy #(
   
   reg[15:0] phyHasDetectedReceiverOnThisLane;
       
+  logic[15:0] acceptancectr[15:0];
+  
   generate
     for(genvar lv=0; lv<N_LANES; lv=lv+1) begin : m2pri_gen
     mac2phyrcvriface m2pri
@@ -192,11 +194,56 @@ module ozphy #(
             end
 
             CONFIG_LINKWIDTH_START: begin
-              if(m2pri_gen[c].m2pri.linkProposed) begin
+              if(m2pri_gen[c].m2pri.linkProposed && (m2pri_gen[c].m2pri.ts1ctr > 7)) begin
                 t1[4][c] <= m2pri_gen[c].m2pri.ts1_linkn;
+                curr_ltssm_state[c] <= CONFIG_LINKWIDTH_ACCEPT;
               end
             end
 
+            CONFIG_LINKWIDTH_ACCEPT: begin
+            if(m2pri_gen[c].m2pri.laneProposed && (m2pri_gen[c].m2pri.ts1ctr > 15)) begin
+                t1[3][c] <= m2pri_gen[c].m2pri.ts1_lanen;
+                curr_ltssm_state[c] <= CONFIG_LANENUM_ACCEPT;
+                end
+            end
+            
+            CONFIG_LANENUM_ACCEPT: begin
+            if(m2pri_gen[c].m2pri.configComplete) begin
+                t2[3][c] <= m2pri_gen[c].m2pri.ts1_lanen;
+                t2[4][c] <= m2pri_gen[c].m2pri.ts1_linkn;
+                curr_ltssm_state[c] <= CONFIG_COMPLETE;
+                end
+            end
+            
+            CONFIG_COMPLETE: begin
+              if(l_txdata[c] == `COM) begin
+                if(acceptancectr[c] > 7) begin
+                  curr_ltssm_state[c] <= CONFIG_IDLE;
+                end
+                else if((m2pri_gen[c].m2pri.osNowInQueue == TS2) &&
+                (m2pri_gen[c].m2pri.rcvrq[1] == t1[4][c]) && //link width
+                (m2pri_gen[c].m2pri.rcvrq[1] != `PAD) && 
+                (m2pri_gen[c].m2pri.rcvrq[2] == t1[3][c]) && //lane num
+                (m2pri_gen[c].m2pri.rcvrq[2] != `PAD) && 
+                ((m2pri_gen[c].m2pri.rcvrq[4] & 8'b01000000) == (t1[1][c] & 8'b01000000))) 
+                  acceptancectr[c]++;
+                else acceptancectr[c] <= 0;
+              end
+              
+            end
+            
+            CONFIG_IDLE: begin
+              m2pri_gen[c].m2pri.enIdleCtr <= 1;
+              if(m2pri_gen[c].m2pri.idlectr > 7) begin
+                m2pri_gen[c].m2pri.enIdleCtr <= 0;
+                curr_ltssm_state[c] <= L0;
+              end
+            end
+            
+            L0: begin
+            
+            end
+            
           endcase
         end
       end
@@ -223,8 +270,8 @@ module ozphy #(
         l_rxstatus[j]   <= 0;
         l_powerdown[j]  <= 2;
         l_rxelecidle[j] <= 1'b1;
-        tctr[j]             = 0;
-        
+        tctr[j]         = 0;
+        acceptancectr[j] = 0;
         phyHasDetectedReceiverOnThisLane[j] = 0;
 
         t1[4][j]            = `PAD;
