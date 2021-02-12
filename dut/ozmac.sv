@@ -1,14 +1,21 @@
 `include "../env/pcie_basic_if.sv"
+`include "rxdriver.sv"
+`include "txrecvr.sv"
+`include "encode.v"
+`include "decode.v"
 `include "ozdefs.sv"
-`include "b8b10conv.sv"
+`include "phy2macdriveriface.sv"
+`include "mac2phyrcvriface.sv"
 
-module ozphy #(
+module ozmac #(
   parameter N_LANES = 16, //number of pcie lanes
   parameter nts = 1024 //number of ts1s and ts2s required during polling phase of ltssm. Spec cites 1024
   ) (
   pcie_basic_if pcie_phy_if, 
     output wire[9:0] testout
     );
+
+  genvar c, j, ir1;
 
   reg[15:0][2:0] l_rxstatus;
   reg[15:0] l_phystatus;
@@ -21,16 +28,61 @@ module ozphy #(
 
   wire[7:0] l_rxdata[15:0];
   wire[7:0] l_txdata[15:0];
-  wire[9:0] l_encoded_txdata[15:0];
   wire[15:0] l_rxdatak;
   wire[15:0] l_txdatak;
 
+  //TS1 ordered set vals
   reg[5:0] tctr[0:15];
 
+  reg[7:0] t1[0:4][0:15];
+  reg[7:0] t2[0:4][0:15];
+
+  reg dispin;
+  wire dispout;
+  
+  wire[15:0] l_ts1ctr[15:0];
+  wire[15:0] l_ts2ctr[15:0];
 
   LTSSM_State curr_ltssm_state[15:0];
   
+  reg[15:0] phyHasDetectedReceiverOnThisLane;
+      
+  logic[15:0] acceptancectr[15:0];
   
+  generate
+    for(genvar lv=0; lv<N_LANES; lv=lv+1) begin : m2pri_gen
+    mac2phyrcvriface m2pri
+  (
+    .clk(pcie_phy_if.clk),
+    .reset_n(pcie_phy_if.reset_n[lv]),
+    .txdata({l_txdata[lv][7],l_txdata[lv][6],l_txdata[lv][5],l_txdata[lv][4],l_txdata[lv][3],l_txdata[lv][2],l_txdata[lv][1],l_txdata[lv][0] }),
+    .en_n(pcie_phy_if.txelecidle[lv]),
+    .txdatak(l_txdatak[lv]),
+    .curr_ltssm_state(curr_ltssm_state[lv]),
+    .ts1ctr(l_ts1ctr[lv]),
+    .ts2ctr(l_ts2ctr[lv])
+    );
+    end
+    for(genvar dv=0; dv<N_LANES; dv=dv+1) begin : txrv
+      txrecvr txrv(m2pri_gen[dv].m2pri.rcvrside);
+    end
+    for(genvar cv=0; cv<N_LANES; cv=cv+1) begin : p2mdi_gen
+      phy2macdriveriface p2mdi(
+        .clk(pcie_phy_if.clk),
+        .currLtssmState(curr_ltssm_state[cv]),
+        .en_n(l_rxelecidle[cv]),
+        .ts1Bytes1Thru5({t1[0][cv], t1[1][cv], t1[2][cv], t1[3][cv], t1[4][cv]}),
+        .ts2Bytes1Thru5({t2[0][cv], t2[1][cv], t2[2][cv], t2[3][cv], t2[4][cv]}),
+        .rxdata({l_rxdata[cv][7],l_rxdata[cv][6],l_rxdata[cv][5],l_rxdata[cv][4],l_rxdata[cv][3],l_rxdata[cv][2],l_rxdata[cv][1],l_rxdata[cv][0] }),
+        .rxdatak(l_rxdatak[cv]),
+        .rxvalid(l_rxvalid[cv])
+      );
+    end
+    for(genvar kv=0; kv<N_LANES; kv=kv+1) begin : rxdrv
+      rxdriver rxdrv(p2mdi_gen[kv].p2mdi.drvrside);
+    end
+  endgenerate
+
   always @(posedge pcie_phy_if.clk or negedge pcie_phy_if.reset_n) begin
     if(!pcie_phy_if.reset_n) l_txdetectrx <= 0;
     else l_txdetectrx                     <= pcie_phy_if.txdetectrx;
@@ -77,13 +129,7 @@ module ozphy #(
   end
 
   generate
-    for(genvar k=0; k<16; k++) begin
-      b8b10conv b8b10_i(pcie_phy_if.clk, pcie_phy_if.reset_n, l_txelecidle[k], l_txdata[k], l_encoded_txdata[k]);
-    end  
-  endgenerate
-    
-  generate
-    for(genvar c=0; c<16; c=c+1) begin
+    for(c=0; c<16; c=c+1) begin
       always @(posedge pcie_phy_if.clk or negedge pcie_phy_if.reset_n) begin
         if(!pcie_phy_if.reset_n) begin
           curr_ltssm_state[c] <= DETECT_QUIET;
@@ -91,6 +137,7 @@ module ozphy #(
           l_phystatus[c]      <= 0;
           l_rxelecidle[c]     <= 1'b1;
           tctr[c]   = 0;
+        phyHasDetectedReceiverOnThisLane[c] <= 0;
         end
         else begin
           case (curr_ltssm_state[c])
@@ -100,6 +147,7 @@ module ozphy #(
                 l_rxstatus[c]       <= 3;
                 l_phystatus[c]      <= 1'b1;
                 curr_ltssm_state[c] <= DETECT_ACTIVE;
+                $display("GO DETECT ACTIVE!!!");
               end
               else begin
                 l_rxstatus[c]       <= 0;
@@ -111,6 +159,7 @@ module ozphy #(
               if (l_powerdown[c] == 0) begin
                 l_phystatus[c]      <= 1'b1;
                 curr_ltssm_state[c] <= POLLING_ACTIVE;
+                $display("GO POLLING ACTIVE!!!");
               end
               else begin
                 l_rxstatus[c]       <= 0;
@@ -130,6 +179,69 @@ module ozphy #(
             end
             
             POLLING_ACTIVE_START_TS1: begin
+              if(EnterPollingConfigCriteriaSatisfied(l_ts1ctr[c], l_txelecidle[c])) begin
+                curr_ltssm_state[c] <= POLLING_CONFIG;
+              end
+            end
+            
+            POLLING_CONFIG: begin
+              if(EnterConfigCriteriaSatisfied(l_ts2ctr[c], l_txelecidle[c])) begin
+                curr_ltssm_state[c] <= CONFIG_LINKWIDTH_START;
+                phyHasDetectedReceiverOnThisLane[c] = 1;
+                m2pri_gen[c].m2pri.ResetTs1Ctr(); //Now when ts1 and ts2 counters contain anything, we know it is new ts1/2 pkts
+                m2pri_gen[c].m2pri.ResetTs2Ctr();
+              end
+            end
+
+            CONFIG_LINKWIDTH_START: begin
+              if(m2pri_gen[c].m2pri.linkProposed && (m2pri_gen[c].m2pri.ts1ctr > 7)) begin
+                t1[4][c] <= m2pri_gen[c].m2pri.ts1_linkn;
+                curr_ltssm_state[c] <= CONFIG_LINKWIDTH_ACCEPT;
+              end
+            end
+
+            CONFIG_LINKWIDTH_ACCEPT: begin
+            if(m2pri_gen[c].m2pri.laneProposed && (m2pri_gen[c].m2pri.ts1ctr > 15)) begin
+                t1[3][c] <= m2pri_gen[c].m2pri.ts1_lanen;
+                curr_ltssm_state[c] <= CONFIG_LANENUM_ACCEPT;
+                end
+            end
+            
+            CONFIG_LANENUM_ACCEPT: begin
+            if(m2pri_gen[c].m2pri.configComplete) begin
+                t2[3][c] <= m2pri_gen[c].m2pri.ts1_lanen;
+                t2[4][c] <= m2pri_gen[c].m2pri.ts1_linkn;
+                curr_ltssm_state[c] <= CONFIG_COMPLETE;
+                end
+            end
+            
+            CONFIG_COMPLETE: begin
+              if(l_txdata[c] == `COM) begin
+                if(acceptancectr[c] > 7) begin
+                  curr_ltssm_state[c] <= CONFIG_IDLE;
+                end
+                else if((m2pri_gen[c].m2pri.osNowInQueue == TS2) &&
+                (m2pri_gen[c].m2pri.rcvrq[1] == t1[4][c]) && //link width
+                (m2pri_gen[c].m2pri.rcvrq[1] != `PAD) && 
+                (m2pri_gen[c].m2pri.rcvrq[2] == t1[3][c]) && //lane num
+                (m2pri_gen[c].m2pri.rcvrq[2] != `PAD) && 
+                ((m2pri_gen[c].m2pri.rcvrq[4] & 8'b01000000) == (t1[1][c] & 8'b01000000))) 
+                  acceptancectr[c]++;
+                else acceptancectr[c] <= 0;
+              end
+              
+            end
+            
+            CONFIG_IDLE: begin
+              m2pri_gen[c].m2pri.enIdleCtr <= 1;
+              if(m2pri_gen[c].m2pri.idlectr > 7) begin
+                m2pri_gen[c].m2pri.enIdleCtr <= 0;
+                curr_ltssm_state[c] <= L0;
+              end
+            end
+            
+            L0: begin
+            
             end
             
           endcase
@@ -139,19 +251,49 @@ module ozphy #(
   endgenerate
 
   initial begin
+    dispin      = 0;
     l_phystatus = 0;
   end
   
+  function int EnterPollingConfigCriteriaSatisfied(logic[15:0] ts1ctr, logic txelecidle);
+    return ((ts1ctr >= 16) && !txelecidle);
+  endfunction
+
+  function int EnterConfigCriteriaSatisfied(logic[15:0] ts2ctr, logic txelecidle);
+    return ((ts2ctr >= 16) && !txelecidle);
+  endfunction
+
   generate
-    for(genvar j=0; j<16; j=j+1) begin
+    for(j=0; j<16; j=j+1) begin
       initial begin
         curr_ltssm_state[j] = DETECT_QUIET;
         l_rxstatus[j]   <= 0;
         l_powerdown[j]  <= 2;
         l_rxelecidle[j] <= 1'b1;
+        tctr[j]         = 0;
+        acceptancectr[j] = 0;
+        phyHasDetectedReceiverOnThisLane[j] = 0;
+
+        t1[4][j]            = `PAD;
+        t1[3][j]            = `PAD;
+        t1[2][j]            = `D4_0;
+        t1[1][j]            = `D2_0;
+        t1[0][j]            = `D8_0;
+
+        t2[4][j]            = `PAD;
+        t2[3][j]            = `PAD;
+        t2[2][j]            = `D4_0;
+        t2[1][j]            = `D2_0;
+        t2[0][j]            = `D8_0;
+
       end
     end
   endgenerate
+
+  always @(posedge pcie_phy_if.clk) begin
+    dispin <= dispout;
+  end
+
 
  
   assign pcie_phy_if.pclk            = pcie_phy_if.clk;
@@ -242,6 +384,8 @@ module ozphy #(
   assign l_txdatak[15] = pcie_phy_if.lane15_rxdatak;
   
   assign pcie_phy_if.phystatus       = l_phystatus;
+
+  encode DUTE (pcie_phy_if.lane0_txdata[7:0], dispin, testout, dispout);
 
 endmodule : ozphy
 

@@ -44,7 +44,7 @@ interface mac2phyrcvriface(
     always @(posedge clk or negedge reset_n) begin
       if(!reset_n) idlectr <= 0;
       else begin
-        if(enIdleCtr && (txdata == `COM)) idlectr++;
+        if(enIdleCtr && (txdata == 8'h00)) idlectr++;
         else idlectr <= 0;
       end
     end

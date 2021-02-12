@@ -42,6 +42,8 @@ interface phy2macdriveriface(
         CONFIG_LINKWIDTH_ACCEPT: seqPtrMax = 16; //Listen for TS1
         CONFIG_LANENUM_ACCEPT: seqPtrMax = 16; //Listen for TS1
         CONFIG_COMPLETE: seqPtrMax = 16; //Listen for TS1
+        CONFIG_IDLE: seqPtrMax = 16; //Listen for TS1
+        L0: seqPtrMax = 16; //Listen for TS1
           default: seqPtrMax = 1;
     endcase
       end 
