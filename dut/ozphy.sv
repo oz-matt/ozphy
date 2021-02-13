@@ -78,7 +78,7 @@ module ozphy #(
 
   generate
     for(genvar k=0; k<16; k++) begin
-      b8b10conv b8b10_i(pcie_phy_if.clk, pcie_phy_if.reset_n, l_txelecidle[k], l_txdata[k], l_encoded_txdata[k]);
+      b8b10conv b8b10_i(pcie_phy_if.clk, pcie_phy_if.reset_n, l_txelecidle[k], 1'b1, l_txdata[k], l_txdatak[k], l_encoded_txdata[k]);
     end  
   endgenerate
     
