@@ -1,10 +1,12 @@
 `include "../env/pcie_basic_if.sv"
 `include "ozdefs.sv"
 `include "b8b10conv.sv"
+`include "serdes.sv"
 
 module ozphy #(
   parameter N_LANES = 16, //number of pcie lanes
-  parameter nts = 1024 //number of ts1s and ts2s required during polling phase of ltssm. Spec cites 1024
+  parameter nts = 1024, //number of ts1s and ts2s required during polling phase of ltssm. Spec cites 1024
+  parameter serdes_cycle = 40
   ) (
   pcie_basic_if pcie_phy_if, 
     output wire[9:0] testout
@@ -22,6 +24,7 @@ module ozphy #(
   wire[7:0] l_rxdata[15:0];
   wire[7:0] l_txdata[15:0];
   wire[9:0] l_encoded_txdata[15:0];
+  wire[15:0] l_serial_tolink;
   wire[15:0] l_rxdatak;
   wire[15:0] l_txdatak;
 
@@ -29,7 +32,15 @@ module ozphy #(
 
 
   LTSSM_State curr_ltssm_state[15:0];
+  reg LinkClock;
   
+  initial
+  begin
+    LinkClock = 0;
+    #(serdes_cycle);  
+    forever
+      #(serdes_cycle/2) LinkClock = ~LinkClock;
+  end
   
   always @(posedge pcie_phy_if.clk or negedge pcie_phy_if.reset_n) begin
     if(!pcie_phy_if.reset_n) l_txdetectrx <= 0;
@@ -78,7 +89,7 @@ module ozphy #(
 
   generate
     for(genvar k=0; k<16; k++) begin
-      b8b10conv b8b10_i(pcie_phy_if.clk, pcie_phy_if.reset_n, l_txelecidle[k], 1'b1, l_txdata[k], l_txdatak[k], l_encoded_txdata[k]);
+      b8b10conv b8b10_i(pcie_phy_if.clk, pcie_phy_if.reset_n[k], l_txelecidle[k], 1'b1, l_txdata[k], l_txdatak[k], l_encoded_txdata[k]);
     end  
   endgenerate
     
@@ -142,6 +153,42 @@ module ozphy #(
     l_phystatus = 0;
   end
   
+   serdes phy_serdes(
+       .SerialClock    (LinkClock),
+       .parallel_in0   (l_encoded_txdata[0]),
+       .parallel_in1   (l_encoded_txdata[1]),
+       .parallel_in2   (l_encoded_txdata[2]),
+       .parallel_in3   (l_encoded_txdata[3]),
+       .parallel_in4   (l_encoded_txdata[4]),
+       .parallel_in5   (l_encoded_txdata[5]),
+       .parallel_in6   (l_encoded_txdata[6]),
+       .parallel_in7   (l_encoded_txdata[7]),
+       .parallel_in8   (l_encoded_txdata[8]),
+       .parallel_in9   (l_encoded_txdata[9]),
+       .parallel_in10  (l_encoded_txdata[10]),
+       .parallel_in11  (l_encoded_txdata[11]),
+       .parallel_in12  (l_encoded_txdata[12]),
+       .parallel_in13  (l_encoded_txdata[13]),
+       .parallel_in14  (l_encoded_txdata[14]),
+       .parallel_in15  (l_encoded_txdata[15]),
+       .serial_out0    (l_serial_tolink[0]),
+       .serial_out1    (l_serial_tolink[1]),
+       .serial_out2    (l_serial_tolink[2]),
+       .serial_out3    (l_serial_tolink[3]),
+       .serial_out4    (l_serial_tolink[4]),
+       .serial_out5    (l_serial_tolink[5]),
+       .serial_out6    (l_serial_tolink[6]),
+       .serial_out7    (l_serial_tolink[7]),
+       .serial_out8    (l_serial_tolink[8]),
+       .serial_out9    (l_serial_tolink[9]),
+       .serial_out10   (l_serial_tolink[10]),
+       .serial_out11   (l_serial_tolink[11]),
+       .serial_out12   (l_serial_tolink[12]),
+       .serial_out13   (l_serial_tolink[13]),
+       .serial_out14   (l_serial_tolink[14]),
+       .serial_out15   (l_serial_tolink[15])
+      );
+
   generate
     for(genvar j=0; j<16; j=j+1) begin
       initial begin
