@@ -13,7 +13,7 @@ module encode (datain, dispin, dataout, dispout) ;
     input [8:0]   datain ;
     input     dispin ;  // 0 = neg disp; 1 = pos disp
     output [9:0]  dataout ;
-    output reg    dispout ;
+    output    dispout ;
 
     wire ai = datain[0] ;
     wire bi = datain[1] ;

@@ -36,13 +36,18 @@ module test_top;
 //-----------------------------------------------------------------------
   reg SystemClock;
 
-  wire [9:0] b10out;
+  wire [15:0] b10out;
+  wire [15:0] b10in;
 
   pcie_basic_if pcie_mac_if ();
   pcie_basic_if pcie_phy_if ();
+  pcie_basic_if pcie_phy_if2 ();
+  pcie_basic_if pcie_mac_if2 ();
   pcie_basic_hdl_interconnect_sv_wrapper hdl_interconnect(pcie_mac_if, pcie_phy_if);
+  pcie_basic_hdl_interconnect_sv_wrapper hdl_interconnect2(pcie_mac_if2, pcie_phy_if2);
 
-  ozphy#(16) ozp_i(pcie_phy_if, b10out);
+  ozphy ozp_i(pcie_phy_if, b10out, b10in);
+  ozphy ozp_i2(pcie_phy_if2, b10in, b10out);
 
   initial
   begin
@@ -55,7 +60,7 @@ module test_top;
   initial begin
 
     top_prog env ;
-    env = new("PCI Express Env", pcie_mac_if.TxRx, pcie_phy_if.TxRx, pcie_mac_if.Monitor );
+    env = new("PCI Express Env", pcie_mac_if.TxRx, pcie_phy_if.TxRx, pcie_mac_if2.Monitor, pcie_mac_if2.TxRx, pcie_phy_if2.TxRx);
     env.start();
     env.atomic_tlp_gen.stop_xactor();
     env.do_directed_test(env.atomic_tlp_gen, env.log);
@@ -63,6 +68,9 @@ module test_top;
 
   assign pcie_mac_if.clk = SystemClock;
   assign pcie_phy_if.clk = SystemClock;
+
+  assign pcie_mac_if2.clk = SystemClock;
+  assign pcie_phy_if2.clk = SystemClock;
 
   initial begin
     #4000000;

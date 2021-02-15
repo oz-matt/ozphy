@@ -13,6 +13,8 @@ import PcieMonitor_rvm::* ;
 
 `define MAC_REQ_ID               16'h0210
 `define MAC_CPL_ID               16'h0210
+`define MAC2_REQ_ID               16'h0100
+`define MAC2_CPL_ID               16'h0100
 `define ENABLE_LOGGING           1
 
 
@@ -28,15 +30,19 @@ class top_prog;
 	virtual pcie_basic_if.TxRx                         vip_port_mac;
 	virtual pcie_basic_if.TxRx                         vip_port_phy;
 	virtual pcie_basic_if.Monitor                      vip_port_monitor;
+	virtual pcie_basic_if.TxRx                         vip_port_mac2;
+	virtual pcie_basic_if.TxRx                         vip_port_phy2;
 
 	/* The built-in log object */
 	static vmm_log   log = new("pcie_basic_env", "class");
 	dw_vip_pcie_txrx_rvm                               vip_mac;
+	dw_vip_pcie_txrx_rvm                               vip_mac2;
 	dw_vip_pcie_txrx_rvm                               vip_phy;
 	dw_vip_pcie_monitor_rvm                            vip_monitor;
 
 	/* Declare configuration objects for each environment component. */
 	dw_vip_pcie_configuration                          mac_cfg;
+	dw_vip_pcie_configuration                          mac_cfg2;
 	dw_vip_pcie_configuration                          phy_cfg;
 	dw_vip_pcie_configuration                          mon_cfg;
 
@@ -49,9 +55,13 @@ class top_prog;
 	function new( string name = "PCIe Env",
 			virtual pcie_basic_if.TxRx     vip_port_mac,
 			virtual pcie_basic_if.TxRx     vip_port_phy,
-			virtual pcie_basic_if.Monitor  vip_port_monitor
+			virtual pcie_basic_if.Monitor  vip_port_monitor,
+			virtual pcie_basic_if.TxRx     vip_port_mac2,
+			virtual pcie_basic_if.TxRx     vip_port_phy2
 		) ;
 		begin
+			this.vip_port_mac2                = vip_port_mac2;
+			this.vip_port_phy2                = vip_port_phy2;
 			this.vip_port_mac                = vip_port_mac;
 			this.vip_port_phy                = vip_port_phy;
 			this.vip_port_monitor            = vip_port_monitor;
@@ -84,6 +94,38 @@ class top_prog;
 			this.mac_cfg.m_nNumIoCplAddrRanges         = 1;
 
 			this.mac_cfg.m_nMaxPayloadSize             = 128;
+			
+			
+			
+			
+
+			this.mac_cfg2                               = new ();
+			this.mac_cfg2.m_enPosition                  = dw_vip_pcie_configuration::DOWNSTREAM;
+
+			this.mac_cfg2.m_enInterfaceType             = dw_vip_pcie_configuration::MAC_PIPE8;
+
+			this.mac_cfg2.m_bSupport2Lanes              = Vmt::VMT_BOOLEAN_TRUE;
+
+			this.mac_cfg2.m_bScrambling                 = Vmt::VMT_BOOLEAN_FALSE;
+
+			this.mac_cfg2.m_enInitialLtssmState         = dw_vip_pcie_configuration::DETECT;
+			this.mac_cfg2.m_bLtssmFastTimeouts          = Vmt::VMT_BOOLEAN_TRUE;
+			this.mac_cfg2.m_nPipeDetectRcvrTime         = 10;
+			//this.mac_cfg.m_nPhyPipePollingEntryDelay   = 10;
+			this.mac_cfg2.m_bBypassFcInit               = Vmt::VMT_BOOLEAN_FALSE;
+			this.mac_cfg2.m_bvReqId                     = `MAC2_REQ_ID;
+			this.mac_cfg2.m_bvCplId                     = `MAC2_CPL_ID;
+			this.mac_cfg2.m_nNumMemCplAddrRanges        = 1;
+			this.mac_cfg2.m_bvMemCplStartAddr[0]        = 0;
+			this.mac_cfg2.m_bvMemCplEndAddr[0]          = `MEM_END_ADDR;
+			this.mac_cfg2.m_nNumIoCplAddrRanges         = 1;
+
+			this.mac_cfg2.m_nMaxPayloadSize             = 128;
+			
+			
+			
+			
+			
 			$cast(this.phy_cfg, this.mac_cfg.copy());
 			this.phy_cfg.m_nPhyPipePollingEntryDelay   = 10;
 			this.phy_cfg.m_enPosition                  = dw_vip_pcie_configuration::DOWNSTREAM;
@@ -108,6 +150,10 @@ class top_prog;
 				this.mac_cfg,
 				atomic_tlp_gen.out_chan);
 
+			vip_mac2  = new ("PCI EXPRESS MAC",
+				this.vip_port_mac2,
+				this.mac_cfg2);
+
 			vip_monitor  = new ("PCI EXPRESS MONITOR",
 				this.vip_port_monitor,
 				this.mon_cfg);
@@ -122,6 +168,7 @@ class top_prog;
 			vip_monitor.log.set_verbosity(vmm_log::WARNING_SEV);
 			//vip_phy.start_xactor();
 			vip_mac.start_xactor();
+			vip_mac2.start_xactor();
 			vip_monitor.start_xactor();
 
 			vip_monitor.open_symbol_log("./pcie_basic_sys_symbol.log", "w");

@@ -6,5 +6,11 @@
 @ 0: vmm_opts::get_object_bit@pull_mode_on@enable pull mode for channels and generators
 #0 in \vmm_channel::new  at /opt/synopsys/VCS_2014_03/etc/rvm/vmm.sv:43269
 @ 0: vmm_opts::get_object_bit@pull_mode_on@enable pull mode for channels and generators
-#0 in \dw_vip_pcie_tlp_transaction_atomic_gen::start_xactor  at top_prog.sv:24
+#0 in \vmm_channel::new  at /opt/synopsys/VCS_2014_03/etc/rvm/vmm.sv:43269
+@ 0: vmm_opts::get_object_bit@pull_mode_on@enable pull mode for channels and generators
+#0 in \vmm_channel::new  at /opt/synopsys/VCS_2014_03/etc/rvm/vmm.sv:43269
+@ 0: vmm_opts::get_object_bit@pull_mode_on@enable pull mode for channels and generators
+#0 in \vmm_channel::new  at /opt/synopsys/VCS_2014_03/etc/rvm/vmm.sv:43269
+@ 0: vmm_opts::get_object_bit@pull_mode_on@enable pull mode for channels and generators
+#0 in \dw_vip_pcie_tlp_transaction_atomic_gen::start_xactor  at top_prog.sv:26
 @ 0: vmm_opts::get_object_int@stop_after_n_insts@          0@D

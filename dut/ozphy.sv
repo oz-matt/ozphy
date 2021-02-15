@@ -1,16 +1,18 @@
 `include "../env/pcie_basic_if.sv"
 `include "ozdefs.sv"
-`include "b8b10conv.sv"
+`include "b8b10enc.sv"
+`include "b8b10dec.sv"
 `include "serdes.sv"
 
 module ozphy #(
-  parameter N_LANES = 16, //number of pcie lanes
-  parameter nts = 1024, //number of ts1s and ts2s required during polling phase of ltssm. Spec cites 1024
-  parameter serdes_cycle = 40
+    parameter N_LANES = 16, //number of pcie lanes
+    parameter nts = 1024, //number of ts1s and ts2s required during polling phase of ltssm. Spec cites 1024
+    parameter serdes_cycle = 40
   ) (
-  pcie_basic_if pcie_phy_if, 
-    output wire[9:0] testout
-    );
+    pcie_basic_if pcie_phy_if, 
+    output[15:0] l_serial_tolink,
+    input[15:0] l_serial_fromlink
+  );
 
   reg[15:0][2:0] l_rxstatus;
   reg[15:0] l_phystatus;
@@ -23,12 +25,13 @@ module ozphy #(
 
   wire[7:0] l_rxdata[15:0];
   wire[7:0] l_txdata[15:0];
+  wire[9:0] l_incoming_pipe_data_from_link[15:0];
   wire[9:0] l_encoded_txdata[15:0];
-  wire[15:0] l_serial_tolink;
   wire[15:0] l_rxdatak;
   wire[15:0] l_txdatak;
 
   reg[5:0] tctr[0:15];
+  reg[5:0] tctr2[0:15];
 
 
   LTSSM_State curr_ltssm_state[15:0];
@@ -41,6 +44,7 @@ module ozphy #(
     forever
       #(serdes_cycle/2) LinkClock = ~LinkClock;
   end
+  
   
   always @(posedge pcie_phy_if.clk or negedge pcie_phy_if.reset_n) begin
     if(!pcie_phy_if.reset_n) l_txdetectrx <= 0;
@@ -89,7 +93,9 @@ module ozphy #(
 
   generate
     for(genvar k=0; k<16; k++) begin
-      b8b10conv b8b10_i(pcie_phy_if.clk, pcie_phy_if.reset_n[k], l_txelecidle[k], 1'b1, l_txdata[k], l_txdatak[k], l_encoded_txdata[k]);
+  assign l_rxvalid[k] = !(l_rxelecidle[k]);
+      b8b10enc b8b10enc_i(pcie_phy_if.clk, pcie_phy_if.reset_n[k], l_txelecidle[k], 1'b1, l_txdata[k], l_txdatak[k], l_encoded_txdata[k]);
+      b8b10dec b8b10dec_i(pcie_phy_if.clk, pcie_phy_if.reset_n[k], l_rxelecidle[k], 1'b1, l_incoming_pipe_data_from_link[k], l_rxdatak[k], l_rxdata[k]);
     end  
   endgenerate
     
@@ -119,28 +125,33 @@ module ozphy #(
             end
 
             DETECT_ACTIVE: begin
+              if(tctr[c] > 7) begin
               if (l_powerdown[c] == 0) begin
                 l_phystatus[c]      <= 1'b1;
+                tctr[c]             <= 0;
                 curr_ltssm_state[c] <= POLLING_ACTIVE;
+              l_rxelecidle[c] <= 1'b0;
               end
               else begin
                 l_rxstatus[c]       <= 0;
-                l_phystatus[c]      <= 0;
               end
+              end
+              else tctr[c]          <= tctr[c] + 1;
             end
 
             POLLING_ACTIVE: begin
-              if(tctr[c] > 3) begin
-                tctr[c]             <= 0;
+              if(tctr2[c] > 7) begin
+                tctr2[c]             <= 0;
                 curr_ltssm_state[c] <= POLLING_ACTIVE_START_TS1;
+                l_phystatus[c]      <= 1;
               end
-              else tctr[c]          <= tctr[c] + 1;
+              else tctr2[c]          <= tctr2[c] + 1;
 
-              l_rxelecidle[c] <= 1'b0;
               l_phystatus[c]  <= 0;
             end
             
             POLLING_ACTIVE_START_TS1: begin
+              l_phystatus[c]  <= 0;
             end
             
           endcase
@@ -186,7 +197,40 @@ module ozphy #(
        .serial_out12   (l_serial_tolink[12]),
        .serial_out13   (l_serial_tolink[13]),
        .serial_out14   (l_serial_tolink[14]),
-       .serial_out15   (l_serial_tolink[15])
+       .serial_out15   (l_serial_tolink[15]),
+
+        .parallel_out0  (l_incoming_pipe_data_from_link[0]),
+	.parallel_out1  (l_incoming_pipe_data_from_link[1]),
+	.parallel_out2  (l_incoming_pipe_data_from_link[2]),
+	.parallel_out3  (l_incoming_pipe_data_from_link[3]),
+	.parallel_out4  (l_incoming_pipe_data_from_link[4]),
+	.parallel_out5  (l_incoming_pipe_data_from_link[5]),
+	.parallel_out6  (l_incoming_pipe_data_from_link[6]),
+	.parallel_out7  (l_incoming_pipe_data_from_link[7]),
+	.parallel_out8  (l_incoming_pipe_data_from_link[8]),
+	.parallel_out9  (l_incoming_pipe_data_from_link[9]),
+	.parallel_out10 (l_incoming_pipe_data_from_link[10]),
+	.parallel_out11 (l_incoming_pipe_data_from_link[11]),
+	.parallel_out12 (l_incoming_pipe_data_from_link[12]),
+	.parallel_out13 (l_incoming_pipe_data_from_link[13]),
+	.parallel_out14 (l_incoming_pipe_data_from_link[14]),
+	.parallel_out15 (l_incoming_pipe_data_from_link[15]),
+       .serial_in0    (l_serial_fromlink[0]),
+       .serial_in1    (l_serial_fromlink[1]),
+       .serial_in2    (l_serial_fromlink[2]),
+       .serial_in3    (l_serial_fromlink[3]),
+       .serial_in4    (l_serial_fromlink[4]),
+       .serial_in5    (l_serial_fromlink[5]),
+       .serial_in6    (l_serial_fromlink[6]),
+       .serial_in7    (l_serial_fromlink[7]),
+       .serial_in8    (l_serial_fromlink[8]),
+       .serial_in9    (l_serial_fromlink[9]),
+       .serial_in10   (l_serial_fromlink[10]),
+       .serial_in11   (l_serial_fromlink[11]),
+       .serial_in12   (l_serial_fromlink[12]),
+       .serial_in13   (l_serial_fromlink[13]),
+       .serial_in14   (l_serial_fromlink[14]),
+       .serial_in15   (l_serial_fromlink[15])
       );
 
   generate
@@ -194,6 +238,8 @@ module ozphy #(
       initial begin
         curr_ltssm_state[j] = DETECT_QUIET;
         l_rxstatus[j]   <= 0;
+        tctr[j]   <= 0;
+        tctr2[j]   <= 0;
         l_powerdown[j]  <= 2;
         l_rxelecidle[j] <= 1'b1;
       end
